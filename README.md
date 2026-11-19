@@ -1089,29 +1089,33 @@ This function is called immediately before a task is migrated to another CPU. It
 #### Important steps
 
 ##### 1. Access the task's scheduling entity
-
+```
 struct sched_entity *se = &p->se;
+```
 
 Retrieves the task's scheduling entity, which stores scheduling information used by the fair scheduler.
 
 ##### 2. Update load tracking
-
+```
 remove_entity_load_avg(se);
 migrate_se_pelt_lag(se);
+```
 
-remove_entity_load_avg(): removes the task's load contribution from the previous runqueue.
+`remove_entity_load_avg():` removes the task's load contribution from the previous runqueue.
 
-migrate_se_pelt_lag(): adjusts the task's PELT information to maintain continuity during migration.
+`migrate_se_pelt_lag():` adjusts the task's PELT information to maintain continuity during migration.
 
 ##### 3. Reset the timestamp
-
+```
 se->avg.last_update_time = 0;
-
+```
 Resets the last-update timestamp so scheduling statistics can be updated appropriately on the new CPU.
 
 ##### 4. Update the scan period
 
+```
 update_scan_period(p, new_cpu);
+```
 
 Updates the task's scan period based on its destination CPU.
 
@@ -1130,3 +1134,7 @@ We also investigated how context switching allows the CPU to move between tasks 
 Overall, the Linux scheduler is not a single algorithm. It is a collection of coordinated mechanisms and scheduling classes that work together to manage CPU resources, prioritize tasks, and maintain system responsiveness and efficiency.
 
 By inspecting the kernel source code, we gained a better understanding of how these mechanisms are implemented and how they interact within the Linux kernel.
+
+#### Youtube Link:
+[text](https://youtu.be/2fR3KydieKY)
+
