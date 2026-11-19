@@ -1136,5 +1136,5 @@ Overall, the Linux scheduler is not a single algorithm. It is a collection of co
 By inspecting the kernel source code, we gained a better understanding of how these mechanisms are implemented and how they interact within the Linux kernel.
 
 #### Youtube Link:
-[text](https://youtu.be/2fR3KydieKY)
+[Linux CPU Scheduling](https://youtu.be/2fR3KydieKY)
 
