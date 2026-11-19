@@ -1,0 +1,127 @@
+ sed -n '11985,12110p' fair.c
+static atomic_t sched_balance_running = ATOMIC_INIT(0);
+
+/*
+ * Check this_cpu to ensure it is balanced within domain. Attempt to move
+ * tasks if there is an imbalance.
+ */
+static int sched_balance_rq(int this_cpu, struct rq *this_rq,
+			struct sched_domain *sd, enum cpu_idle_type idle,
+			int *continue_balancing)
+{
+	int ld_moved, cur_ld_moved, active_balance = 0;
+	struct sched_domain *sd_parent = sd->parent;
+	struct sched_group *group;
+	struct rq *busiest;
+	struct rq_flags rf;
+	struct cpumask *cpus = this_cpu_cpumask_var_ptr(load_balance_mask);
+	struct lb_env env = {
+		.sd		= sd,
+		.dst_cpu	= this_cpu,
+		.dst_rq		= this_rq,
+		.dst_grpmask    = group_balance_mask(sd->groups),
+		.idle		= idle,
+		.loop_break	= SCHED_NR_MIGRATE_BREAK,
+		.cpus		= cpus,
+		.fbq_type	= all,
+		.tasks		= LIST_HEAD_INIT(env.tasks),
+	};
+	bool need_unlock = false;
+
+	cpumask_and(cpus, sched_domain_span(sd), cpu_active_mask);
+
+	schedstat_inc(sd->lb_count[idle]);
+
+redo:
+	if (!should_we_balance(&env)) {
+		*continue_balancing = 0;
+		goto out_balanced;
+	}
+
+	if (!need_unlock && (sd->flags & SD_SERIALIZE)) {
+		int zero = 0;
+		if (!atomic_try_cmpxchg_acquire(&sched_balance_running, &zero, 1))
+			goto out_balanced;
+
+		need_unlock = true;
+	}
+
+	group = sched_balance_find_src_group(&env);
+	if (!group) {
+		schedstat_inc(sd->lb_nobusyg[idle]);
+		goto out_balanced;
+	}
+
+	busiest = sched_balance_find_src_rq(&env, group);
+	if (!busiest) {
+		schedstat_inc(sd->lb_nobusyq[idle]);
+		goto out_balanced;
+	}
+
+	WARN_ON_ONCE(busiest == env.dst_rq);
+
+	update_lb_imbalance_stat(&env, sd, idle);
+
+	env.src_cpu = busiest->cpu;
+	env.src_rq = busiest;
+
+	ld_moved = 0;
+	/* Clear this flag as soon as we find a pullable task */
+	env.flags |= LBF_ALL_PINNED;
+	if (busiest->nr_running > 1) {
+		/*
+		 * Attempt to move tasks. If sched_balance_find_src_group has found
+		 * an imbalance but busiest->nr_running <= 1, the group is
+		 * still unbalanced. ld_moved simply stays zero, so it is
+		 * correctly treated as an imbalance.
+		 */
+		env.loop_max  = min(sysctl_sched_nr_migrate, busiest->nr_running);
+
+more_balance:
+		rq_lock_irqsave(busiest, &rf);
+		update_rq_clock(busiest);
+
+		/*
+		 * cur_ld_moved - load moved in current iteration
+		 * ld_moved     - cumulative load moved across iterations
+		 */
+		cur_ld_moved = detach_tasks(&env);
+
+		/*
+		 * We've detached some tasks from busiest_rq. Every
+		 * task is masked "TASK_ON_RQ_MIGRATING", so we can safely
+		 * unlock busiest->lock, and we are able to be sure
+		 * that nobody can manipulate the tasks in parallel.
+		 * See task_rq_lock() family for the details.
+		 */
+
+		rq_unlock(busiest, &rf);
+
+		if (cur_ld_moved) {
+			attach_tasks(&env);
+			ld_moved += cur_ld_moved;
+		}
+
+		local_irq_restore(rf.flags);
+
+		if (env.flags & LBF_NEED_BREAK) {
+			env.flags &= ~LBF_NEED_BREAK;
+			goto more_balance;
+		}
+
+		/*
+		 * Revisit (affine) tasks on src_cpu that couldn't be moved to
+		 * us and move them to an alternate dst_cpu in our sched_group
+		 * where they can run. The upper limit on how many times we
+		 * iterate on same src_cpu is dependent on number of CPUs in our
+		 * sched_group.
+		 *
+		 * This changes load balance semantics a bit on who can move
+		 * load to a given_cpu. In addition to the given_cpu itself
+		 * (or a ilb_cpu acting on its behalf where given_cpu is
+		 * nohz-idle), we now have balance_cpu in a position to move
+		 * load to given_cpu. In rare situations, this may cause
+		 * conflicts (balance_cpu and given_cpu/ilb_cpu deciding
+		 * _independently_ and at _same_ time to move some load to
+		 * given_cpu) causing excess load to be moved to given_cpu.
+		 * This however should not happen so much in practice and

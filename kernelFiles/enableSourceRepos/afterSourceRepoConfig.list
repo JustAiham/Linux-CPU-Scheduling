@@ -1,0 +1,14 @@
+deb https://mirror.rackspace.com/linuxmint/packages zena main upstream import backport 
+
+deb http://mirror.cogentco.com/pub/linux/ubuntu noble main restricted universe multiverse
+deb-src http://mirror.cogentco.com/pub/linux/ubuntu noble main restricted universe multiverse
+
+deb http://mirror.cogentco.com/pub/linux/ubuntu noble-updates main restricted universe multiverse
+deb-src http://mirror.cogentco.com/pub/linux/ubuntu noble-updates main restricted universe multiverse
+
+
+deb http://mirror.cogentco.com/pub/linux/ubuntu noble-backports main restricted universe multiverse
+deb-src http://mirror.cogentco.com/pub/linux/ubuntu noble-backports main restricted universe multiverse
+
+deb http://security.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+deb-src http://security.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
